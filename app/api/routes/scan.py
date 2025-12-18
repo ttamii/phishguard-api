@@ -15,7 +15,6 @@ from app.schemas.scan import (
     ScanMessageRequest,
     ScanResult,
     MessageScanResult,
-    FeatureSet,
     Explanation,
 )
 from app.ml.predictor import predictor
@@ -30,7 +29,7 @@ async def scan_url(request: ScanURLRequest):
     
     - **url**: URL для проверки
     - **model**: ML модель (logistic_regression, random_forest, xgboost)
-    - **include_explanation**: Включить SHAP объяснение
+    - **include_explanation**: Включить объяснение
     """
     start_time = time.time()
     
@@ -53,6 +52,25 @@ async def scan_url(request: ScanURLRequest):
         # Время выполнения
         scan_duration = int((time.time() - start_time) * 1000)
         
+        # Фильтруем features для UI (только основные)
+        ui_features = {
+            'urlLength': features.get('length_url', features.get('urlLength', 0)),
+            'domainLength': features.get('domain_length', features.get('domainLength', 0)),
+            'pathLength': features.get('directory_length', features.get('pathLength', 0)),
+            'hasHttps': features.get('tls_ssl_certificate', 0) == 1,
+            'hasIPAddress': features.get('domain_in_ip', 0) == 1,
+            'subdomainCount': features.get('qty_dot_domain', 0),
+            'specialCharCount': features.get('qty_at_url', 0) + features.get('qty_hyphen_url', 0),
+            'hasAtSymbol': features.get('qty_at_url', 0) > 0,
+            'hasSuspiciousPort': False,
+            'suspiciousKeywords': features.get('suspiciousKeywords', []),
+            'isShortened': features.get('url_shortened', 0) == 1,
+            'numericDomain': False,
+            'pathDepth': features.get('qty_slash_url', 0),
+            'queryParamCount': features.get('qty_params', 0) if features.get('qty_params', -1) >= 0 else 0,
+            'entropyScore': features.get('entropyScore', 0),
+        }
+        
         # Формируем ответ
         return ScanResult(
             scanId=str(uuid.uuid4()),
@@ -62,12 +80,13 @@ async def scan_url(request: ScanURLRequest):
             confidence=round(min(probability * 1.1, 0.99) if probability > 0.5 else min((1 - probability) * 1.1, 0.99), 4),
             classification=classification,
             modelUsed=request.model,
-            features=FeatureSet(**features),
+            features=ui_features,
             explanation=Explanation(**explanation) if explanation else None,
             timestamp=datetime.now(),
             scanDuration=scan_duration,
         )
     except Exception as e:
+        print(f"Scan error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -75,9 +94,6 @@ async def scan_url(request: ScanURLRequest):
 async def scan_message(request: ScanMessageRequest):
     """
     Сканирование текстового сообщения на фишинговые ссылки
-    
-    - **text**: Текст сообщения (SMS, Email)
-    - **extract_urls**: Автоматически извлекать URL
     """
     start_time = time.time()
     
@@ -98,6 +114,12 @@ async def scan_message(request: ScanMessageRequest):
             classification = predictor.get_classification(probability)
             scan_duration = int((time.time() - start_time) * 1000)
             
+            ui_features = {
+                'urlLength': features.get('length_url', 0),
+                'domainLength': features.get('domain_length', 0),
+                'hasHttps': features.get('tls_ssl_certificate', 0) == 1,
+            }
+            
             url_results.append(ScanResult(
                 scanId=str(uuid.uuid4()),
                 url=url,
@@ -106,7 +128,7 @@ async def scan_message(request: ScanMessageRequest):
                 confidence=round(min(probability * 1.1, 0.99), 4),
                 classification=classification,
                 modelUsed="xgboost",
-                features=FeatureSet(**features),
+                features=ui_features,
                 explanation=Explanation(**explanation) if explanation else None,
                 timestamp=datetime.now(),
                 scanDuration=scan_duration,
@@ -126,7 +148,7 @@ async def scan_message(request: ScanMessageRequest):
     
     return MessageScanResult(
         scanId=str(uuid.uuid4()),
-        originalText=request.text[:500],  # Ограничиваем длину
+        originalText=request.text[:500],
         extractedUrls=extracted_urls,
         urlResults=url_results,
         overallRisk=overall_risk,
@@ -136,13 +158,8 @@ async def scan_message(request: ScanMessageRequest):
 
 @router.get("/{scan_id}/explanation")
 async def get_explanation(scan_id: str):
-    """
-    Получение объяснения для предыдущего сканирования
-    
-    В реальном приложении здесь был бы поиск в БД
-    """
-    # Заглушка - в реальности искали бы в базе
+    """Получение объяснения для предыдущего сканирования"""
     raise HTTPException(
         status_code=404,
-        detail="Сканирование не найдено. Используйте include_explanation=true при сканировании."
+        detail="Используйте include_explanation=true при сканировании."
     )

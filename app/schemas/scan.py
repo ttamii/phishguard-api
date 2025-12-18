@@ -2,10 +2,9 @@
 Pydantic схемы для API запросов и ответов
 """
 
-from pydantic import BaseModel, HttpUrl, Field
-from typing import Optional, List, Literal
+from pydantic import BaseModel, Field
+from typing import Optional, List, Literal, Dict, Any
 from datetime import datetime
-import uuid
 
 
 class ScanURLRequest(BaseModel):
@@ -17,7 +16,7 @@ class ScanURLRequest(BaseModel):
     )
     include_explanation: bool = Field(
         default=True,
-        description="Включить SHAP объяснение"
+        description="Включить объяснение"
     )
 
 
@@ -27,33 +26,11 @@ class ScanMessageRequest(BaseModel):
     extract_urls: bool = Field(default=True, description="Извлекать URL из текста")
 
 
-class FeatureSet(BaseModel):
-    """Набор признаков URL"""
-    url_length: int = Field(..., alias="urlLength")
-    domain_length: int = Field(..., alias="domainLength")
-    path_length: int = Field(..., alias="pathLength")
-    has_https: bool = Field(..., alias="hasHttps")
-    has_ip_address: bool = Field(..., alias="hasIPAddress")
-    subdomain_count: int = Field(..., alias="subdomainCount")
-    special_char_count: int = Field(..., alias="specialCharCount")
-    has_at_symbol: bool = Field(..., alias="hasAtSymbol")
-    has_suspicious_port: bool = Field(..., alias="hasSuspiciousPort")
-    suspicious_keywords: List[str] = Field(..., alias="suspiciousKeywords")
-    is_shortened: bool = Field(..., alias="isShortened")
-    numeric_domain: bool = Field(..., alias="numericDomain")
-    path_depth: int = Field(..., alias="pathDepth")
-    query_param_count: int = Field(..., alias="queryParamCount")
-    entropy_score: float = Field(..., alias="entropyScore")
-    
-    class Config:
-        populate_by_name = True
-
-
 class FeatureContribution(BaseModel):
     """Вклад признака в предсказание"""
     feature: str
     feature_ru: str = Field(..., alias="featureRu")
-    value: str | int | float | bool
+    value: Any
     display_value: str = Field(..., alias="displayValue")
     contribution: float
     direction: Literal["increases_risk", "decreases_risk"]
@@ -84,7 +61,7 @@ class ScanResult(BaseModel):
     confidence: float
     classification: Literal["safe", "suspicious", "dangerous"]
     model_used: str = Field(..., alias="modelUsed")
-    features: FeatureSet
+    features: Dict[str, Any]  # Гибкий формат для 111+ признаков
     explanation: Optional[Explanation] = None
     timestamp: datetime
     scan_duration: int = Field(..., alias="scanDuration", description="мс")

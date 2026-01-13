@@ -11,10 +11,28 @@ from app.core.config import settings
 
 app = FastAPI(
     title="PhishGuard API",
-    description="API для обнаружения фишинговых атак с использованием ML",
+    description="""
+## API для обнаружения фишинговых атак
+
+PhishGuard использует машинное обучение (XGBoost) для анализа URL и обнаружения фишинговых сайтов.
+
+### Возможности:
+- **Анализ URL** — проверка ссылок на фишинг
+- **XGBoost модель** — точность 94.5%
+- **111 признаков** — комплексный анализ
+- **Казахстанские сайты** — whitelist локальных доменов
+
+### Автор
+Тамирис | Дипломная работа 2025
+    """,
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    openapi_tags=[
+        {"name": "Сканирование", "description": "Анализ URL на фишинг"},
+        {"name": "ML модели", "description": "Информация о моделях"},
+        {"name": "Здоровье", "description": "Проверка статуса API"},
+    ]
 )
 
 # CORS middleware для мобильного приложения
